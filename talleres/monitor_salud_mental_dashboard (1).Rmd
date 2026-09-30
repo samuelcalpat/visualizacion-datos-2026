@@ -1,0 +1,196 @@
+---
+title: "Monitor de Conducta Suicida y Salud Mental"
+subtitle: "Observatorio de Salud Pública D.C. — Análisis Epidemiológico Bogotá (datos simulados)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = TRUE)
+```
+
+## 1. Instalación de paquetes (ejecutar una sola vez)
+
+Si no tienes estos paquetes instalados, corre esta celda una vez (luego puedes
+dejarla con `eval=FALSE` o borrarla):
+
+```{r instalar, eval=FALSE}
+install.packages(c("dplyr", "plotly", "htmltools"))
+```
+
+```{r librerias}
+library(dplyr)
+library(plotly)
+library(htmltools)
+```
+
+## 2. Datos (simulados)
+
+```{r datos}
+set.seed(42)
+
+localidades <- c(
+  "Kennedy", "Suba", "Bosa", "Ciudad Bolívar", "Engativá",
+  "Usme", "San Cristóbal", "Usaquén", "Fontibón"
+)
+sexos <- c("Hombre", "Mujer")
+eventos <- c("Ideación suicida", "Intento suicida", "Suicidio consumado")
+
+n <- 1200
+df <- data.frame(
+  Localidad = sample(localidades, n, replace = TRUE),
+  Sexo = sample(sexos, n, replace = TRUE, prob = c(0.45, 0.55)),
+  Evento = sample(eventos, n, replace = TRUE, prob = c(0.5, 0.4, 0.1)),
+  Edad = sample(10:84, n, replace = TRUE),
+  `Nivel Educativo` = sample(
+    c("Secundaria", "Universidad", "Técnico", "Primaria", "Posgrado"),
+    n, replace = TRUE
+  ),
+  `Estado Civil` = sample(
+    c("Soltero/a", "Unión Libre", "Casado/a", "Separado/a"),
+    n, replace = TRUE
+  ),
+  check.names = FALSE
+)
+```
+
+## 3. Encabezado destacado
+
+```{r encabezado, results='asis'}
+htmltools::HTML('
+<div style="background-color:#0B0F19;padding:25px;border-radius:12px;text-align:center;border-bottom:3px solid #FF007F;font-family:sans-serif;margin-bottom:10px;">
+  <h1 style="color:#00E5FF;margin:0;font-size:32px;letter-spacing:1.5px;font-weight:800;text-transform:uppercase;">
+    🚨 MONITOR DE CONDUCTA SUICIDA Y SALUD MENTAL
+  </h1>
+  <h3 style="color:#FF007F;margin:8px 0 0 0;font-size:18px;font-weight:600;">
+    Observatorio de Salud Pública D.C. — Análisis Epidemiológico Bogotá
+  </h3>
+  <p style="color:#A0AABF;margin:6px 0 0 0;font-size:13px;">
+    Panel de Control Interactivo | Indicadores Demográficos y Prevención
+  </p>
+</div>
+')
+```
+
+## 4. Configuración de colores
+
+```{r colores}
+COLOR_MUJER  <- "#FF007F"
+COLOR_HOMBRE <- "#00E5FF"
+BG_COLOR     <- "#0B0F19"
+
+paleta_eventos <- c(
+  "Ideación suicida"    = "#FFB100",
+  "Intento suicida"     = "#FF007F",
+  "Suicidio consumado"  = "#9D00FF"
+)
+```
+
+## 5. Indicadores (total de casos y edad promedio)
+
+```{r indicadores}
+ind1 <- plot_ly(
+  type = "indicator",
+  mode = "number",
+  value = nrow(df),
+  title = list(text = "<b>TOTAL CASOS REGISTRADOS</b>", font = list(size = 13)),
+  number = list(font = list(color = "#00E5FF", size = 42))
+)
+
+ind2 <- plot_ly(
+  type = "indicator",
+  mode = "number",
+  value = round(mean(df$Edad)),
+  title = list(text = "<b>PROMEDIO DE EDAD</b>", font = list(size = 13)),
+  number = list(font = list(color = "#FF007F", size = 42), suffix = " años")
+)
+
+subplot(ind1, ind2, nrows = 1) %>%
+  layout(paper_bgcolor = BG_COLOR, plot_bgcolor = BG_COLOR)
+```
+
+## 6. Casos por Localidad y Sexo
+
+```{r localidad}
+df_loc <- df %>% count(Localidad, Sexo, name = "Casos")
+
+plot_ly(
+  df_loc, y = ~Localidad, x = ~Casos, color = ~Sexo,
+  colors = c(Hombre = COLOR_HOMBRE, Mujer = COLOR_MUJER),
+  type = "bar", orientation = "h",
+  text = ~Casos, textposition = "auto"
+) %>%
+  layout(
+    barmode = "group",
+    title = "📍 Casos por Localidad y Sexo",
+    paper_bgcolor = BG_COLOR, plot_bgcolor = BG_COLOR,
+    font = list(color = "white"),
+    xaxis = list(gridcolor = "#1E293B"),
+    yaxis = list(gridcolor = "#1E293B")
+  )
+```
+
+## 7. Distribución por Edad y Tipo de Evento
+
+```{r edad_evento}
+fig_edad <- plot_ly()
+
+for (ev in names(paleta_eventos)) {
+  df_ev <- df %>% filter(Evento == ev)
+  fig_edad <- fig_edad %>%
+    add_histogram(
+      x = df_ev$Edad, name = ev,
+      marker = list(color = paleta_eventos[[ev]]),
+      opacity = 0.75, nbinsx = 15
+    )
+}
+
+fig_edad %>%
+  layout(
+    barmode = "overlay",
+    title = "👥 Distribución por Edad y Tipo de Evento",
+    paper_bgcolor = BG_COLOR, plot_bgcolor = BG_COLOR,
+    font = list(color = "white"),
+    xaxis = list(gridcolor = "#1E293B"),
+    yaxis = list(gridcolor = "#1E293B")
+  )
+```
+
+## 8. Estado Civil
+
+```{r estado_civil}
+df_civil <- df %>% count(`Estado Civil`, name = "Cantidad")
+
+plot_ly(
+  df_civil, labels = ~`Estado Civil`, values = ~Cantidad,
+  type = "pie", hole = 0.5,
+  marker = list(colors = c("#00E5FF", "#FF007F", "#FFB100", "#9D00FF")),
+  textinfo = "label+percent"
+) %>%
+  layout(
+    title = "💍 Estado Civil",
+    paper_bgcolor = BG_COLOR, plot_bgcolor = BG_COLOR,
+    font = list(color = "white"),
+    showlegend = FALSE
+  )
+```
+
+## 9. Casos por Nivel Educativo
+
+```{r nivel_educativo}
+df_edu <- df %>% count(`Nivel Educativo`, Sexo, name = "Casos")
+
+plot_ly(
+  df_edu, x = ~`Nivel Educativo`, y = ~Casos, color = ~Sexo,
+  colors = c(Hombre = COLOR_HOMBRE, Mujer = COLOR_MUJER),
+  type = "bar"
+) %>%
+  layout(
+    barmode = "group",
+    title = "🎓 Casos por Nivel Educativo",
+    paper_bgcolor = BG_COLOR, plot_bgcolor = BG_COLOR,
+    font = list(color = "white"),
+    showlegend = FALSE,
+    xaxis = list(gridcolor = "#1E293B"),
+    yaxis = list(gridcolor = "#1E293B")
+  )
+```
